@@ -24,3 +24,36 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Hide default cursor only on devices with a mouse */
+@media (pointer: fine) {
+  body {
+    cursor: none;
+  }
+  a, button {
+    cursor: none; /* Important: hide the little hand too */
+  }
+}
+
+/* ... existing tailwind imports ... */
+
+@layer base {
+  /* Hide the default cursor on desktop */
+  @media (pointer: fine) {
+    body, a, button, input {
+      cursor: none !important;
+    }
+  }
+}
+
+/* app/globals.css */
+
+/* 1. Force the custom cursor to be on top of the lightbox */
+.fixed.z-\[99999\] {
+  z-index: 2147483647 !important; /* Maximum allowed CSS value */
+}
+
+/* 2. Ensure the default mouse is truly gone */
+body, a, button, [role="button"] {
+  cursor: none !important;
+}
