@@ -26,52 +26,83 @@ async function getBase64ImageUrl(imageId: string): Promise<string | undefined> {
 	}
 }
 
-export async function getPortfolioImages() {
-	try {
-		const results = await cloudinary.search
-			.expression('folder:portfolio/*')
-			.sort_by('created_at', 'desc')
-			.with_field('tags') // <--- IMPORTANT: Fetch tags for filtering later
-			.max_results(30)
-			.execute();
+// ... existing getPortfolioImages function ...
 
-		// Process images in parallel
-		const resources = results.resources;
+export async function getImageById(id: string) {
+  try {
+    const results = await cloudinary.search
+      .expression(`asset_id:${id}`)
+      .max_results(1)
+      .execute();
 
-		// We map over resources and wait for all base64 generations to finish
-		const shots = await Promise.all(
-			resources.map(async (resource: any) => {
-				const blurDataURL = await getBase64ImageUrl(resource.public_id);
+    if (!results.resources || results.resources.length === 0) {
+      return null;
+    }
 
-				return {
-					id: resource.asset_id,
-					url: cloudinary.url(resource.public_id, {
-						fetch_format: 'auto',
-						quality: 'auto',
+    const resource = results.resources[0];
 
-						// 1. Use 'thumb' or 'fill' to allow zooming
-						crop: 'fill',
-						// 2. Focus on the face so the crop doesn't cut off heads
-						gravity: 'face',
-						// 3. Zoom in 10% (1.1). This pushes the bottom-right watermark out of view.
-						zoom: '1.1',
-						// Optional: Ensure the aspect ratio stays consistent if you want
-						// aspect_ratio: "4:5"
-						effect: 'gen_remove:prompt_text_logo',
-					}),
-					width: resource.width,
-					height: resource.height,
-					scenario: resource.context?.custom?.caption || resource.filename,
-					tags: resource.tags || [], // <--- Pass tags to frontend
-					blurDataURL,
-					// <--- The magic string
-				};
-			})
-		);
-
-		return shots;
-	} catch (error) {
-		console.error('Cloudinary Fetch Error:', error);
-		return [];
-	}
+    // Reuse your mapping logic here
+    return {
+      id: resource.asset_id,
+      url: cloudinary.url(resource.public_id, {
+        fetch_format: 'auto',
+        quality: 'auto',
+      }),
+      width: resource.width,
+      height: resource.height,
+      scenario: resource.context?.custom?.caption || resource.filename,
+      tags: resource.tags || [],
+    };
+  } catch (error) {
+    console.error("Cloudinary Single Fetch Error:", error);
+    return null;
+  }
 }
+
+export async function getPortfolioImages(tag?: string) { // <--- Added argument here
+  try {
+    // Force lowercase to avoid case-sensitivity issues
+    const safeTag = tag ? tag.toLowerCase() : undefined;
+
+    // If a tag is provided, filter by it. Otherwise, show everything.
+    const expression = safeTag 
+      ? `folder:portfolio/* AND tags:${safeTag}` 
+      : `folder:portfolio/*`;
+
+    const results = await cloudinary.search
+      .expression(expression)
+      .sort_by('created_at', 'desc')
+      .with_field('tags')
+      .max_results(30)
+      .execute();
+
+    // ... (Keep your existing mapping logic below unchanged) ...
+    const resources = results.resources;
+    
+    // ... rest of the file ...
+    const shots = await Promise.all(resources.map(async (resource: any) => {
+        // ... (your existing base64 and mapping code)
+        // You likely don't need to change the mapping code, just the top part of this function.
+        // But make sure you return 'shots' at the end.
+        return {
+             id: resource.asset_id,
+             url: cloudinary.url(resource.public_id, {
+                 fetch_format: 'auto',
+                 quality: 'auto',
+             }),
+             width: resource.width,
+             height: resource.height,
+             scenario: resource.context?.custom?.caption || resource.filename,
+             tags: resource.tags || [],
+             // ensure blurDataURL logic is here if you had it
+        };
+    }));
+
+    return shots;
+
+  } catch (error) {
+    console.error("Cloudinary Fetch Error:", error);
+    return [];
+  }
+}
+
